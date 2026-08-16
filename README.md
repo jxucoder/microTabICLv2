@@ -1,205 +1,156 @@
 # microTabICLv2
 
-A compact, trainable implementation of the
-[TabICLv2](https://arxiv.org/abs/2602.11139) architecture that runs locally on
-Apple Silicon or CPU and scales to larger CUDA training jobs on
-[Modal](https://modal.com/).
+A **one-file**, educational implementation of
+[TabICLv2](https://arxiv.org/abs/2602.11139). It trains from scratch on a tiny
+synthetic prior, runs on a Mac, and can use the same file on Modal GPUs.
 
-Like [microTabPFN](https://github.com/jxucoder/microtabpfn), this project is for
-learning and experimentation. It trains from scratch on an on-the-fly synthetic
-prior. It is **not** a repackaging of the official pretrained TabICLv2 weights,
-and a short laptop run should not be expected to match the paper's benchmark
-results.
+Like [microTabPFN](https://github.com/jxucoder/microtabpfn), the goal is to make
+the idea readable—not to reproduce the official pretrained model or its compute
+budget.
 
-## What is preserved from TabICLv2
+## Quick start
 
-- repeated feature grouping with circular shifts `(0, 1, 3)`;
-- target-aware embeddings before column compression;
-- induced Set-Transformer attention over rows within each feature;
-- feature-wise row interaction, RoPE, and learnable CLS tokens;
-- dataset-wise in-context learning where test rows attend only to train rows;
-- query-aware scalable softmax (QASSMax);
-- classification and quantile-regression checkpoints;
-- a diverse directed-graph prior and optional Muon training.
-
-The local model and prior are intentionally smaller. See
-[docs/RESEARCH.md](docs/RESEARCH.md) for the exact paper/code/PR findings that
-guided the implementation.
-
-## Run on a Mac
-
-Install [uv](https://docs.astral.sh/uv/), then:
+Install [uv](https://docs.astral.sh/uv/), then run the whole experiment:
 
 ```bash
 uv sync --extra dev
-uv run microtabiclv2 info
-uv run microtabiclv2 demo --steps 50 --device auto
+uv run python microtabiclv2.py --steps 500 --device auto
 ```
 
-`--device auto` prefers CUDA, then Apple MPS, then CPU. Intel Macs use their
-last wheel-supported PyTorch release (2.2.2); Apple Silicon and CUDA machines
-use a current PyTorch release. Local training defaults
-to float32. MPS AMP can roughly halve activation memory, but is opt-in because
-the current upstream testing found little speed benefit on a real M4:
+That single command:
 
-```bash
-uv run microtabiclv2 train \
-  --profile micro \
-  --task classification \
-  --steps 500 \
-  --device mps \
-  --amp \
-  --output checkpoints/microtabiclv2-clf.pt
+1. trains on synthetic tabular tasks;
+2. measures binary-Iris AUC every 50 steps;
+3. compares correct and shuffled context labels;
+4. tests four context-defined decision rules; and
+5. saves a reusable checkpoint.
+
+Add `--svg-dir evaluations` to regenerate the figures. Use `--load
+checkpoints/microtabiclv2.pt --steps 0` to evaluate without training again.
+
+## The entire implementation
+
+[`microtabiclv2.py`](microtabiclv2.py) contains:
+
+- the correlated nonlinear synthetic prior;
+- feature grouping `(0, 1, 3)`;
+- early target-aware embeddings;
+- induced column attention;
+- RoPE row attention and CLS aggregation;
+- dataset-wise in-context attention with QASSMax;
+- training and checkpoints;
+- the sklearn-style classifier;
+- AUC and rule-switching proofs; and
+- optional Modal functions.
+
+The core model, prior, training loop, and estimator are about 300 lines. The
+remaining lines are comments, proofs, dependency-free SVG output, and Modal/CLI
+entrypoints.
+
+## How it works
+
+```text
+synthetic tasks
+      │
+      ▼
+group neighboring features + add known train labels
+      │
+      ▼
+induced attention over rows inside each feature
+      │
+      ▼
+attention over features inside each row
+      │
+      ▼
+test rows attend to labeled train rows (ICL happens here)
+      │
+      ▼
+class probabilities — no gradient update at inference
 ```
 
-For the most conservative Mac path use `--device cpu --no-amp`. The model also
-avoids the biased rank-3 `F.linear` path implicated in a current PyTorch MPS bug.
+## Does it really use context?
+
+A benchmark score alone is weak evidence. The rule-switching intervention keeps
+the model, feature coordinates, and test grid fixed while changing only the
+context labels. The frozen model must produce four incompatible boundaries.
+
+<img src="docs/assets/rule-switching.svg" width="680" alt="Four decision surfaces produced by one frozen model from different context labels">
+
+The training trace checks a different claim: does AUC improve as synthetic
+pretraining continues, while shuffled-label context stays near chance?
+
+<img src="docs/assets/auc-vs-steps.svg" width="680" alt="Correct-label and shuffled-label AUC during synthetic pretraining">
+
+These are demonstrations of real in-context adaptation, not claims of broad
+state-of-the-art tabular performance.
+
+One reproducible 500-step run on Apple MPS (seed 42) produced:
+
+| Test | Correct context | Control |
+|---|---:|---:|
+| Binary Iris AUC | **0.969** | 0.481 with shuffled labels |
+| 100 changing linear rules | **0.984** | 0.528 with the wrong rule |
+
+The point is the controlled gap: the weights and test inputs stay fixed, and
+only the labeled examples change. Run the quick-start command to reproduce it;
+exact values vary with hardware and seed.
 
 ## Make it bigger with Modal
 
-Install and authenticate Modal once:
+The same file exposes two optional Modal functions:
 
 ```bash
 uv sync --extra modal
 uv run modal setup
+
+# L40S / A10 / T4 fallback pool
+uv run modal run microtabiclv2.py::modal_small \
+  --profile small --steps 5000 --name small
+
+# H100 / A100-80GB fallback pool
+uv run modal run --detach microtabiclv2.py::modal_large \
+  --profile paper --steps 100000 --name paper
 ```
 
-Run the small profile on an L40S/A10/T4 fallback pool:
+Checkpoints persist in the `microtabiclv2-checkpoints` Modal Volume.
 
-```bash
-uv run modal run modal_app.py \
-  --profile small \
-  --task classification \
-  --steps 5000 \
-  --run-name small-clf
-```
+| Profile | Width | Blocks (column/row/ICL) | Intended hardware |
+|---|---:|---:|---|
+| `micro` | 48 | 1 / 1 / 2 | Mac / CPU |
+| `small` | 64 | 2 / 2 / 4 | Modal value GPU |
+| `paper` | 128 | 3 / 3 / 12 | Modal H100 / A100 |
+| `large` | 192 | 4 / 4 / 18 | scaling experiment |
 
-Run the paper-size architecture on H100/A100-80GB, detached for a long job:
+## Limitations
 
-```bash
-uv run modal run --detach modal_app.py \
-  --profile paper \
-  --task regression \
-  --run-name paper-reg
-```
+- classification only;
+- a tiny SCM/BNN-like prior rather than the full released TabICLv2 prior;
+- contexts of tens to hundreds of rows, not the paper's 60K-row curriculum;
+- no preprocessing ensemble, KV cache, disk offloading, or official weights;
+- educational profiles are not benchmark-equivalent to TabICLv2.
 
-The `large` profile increases the paper architecture to width 192 and
-`4/4/18` column/row/ICL blocks. This is a research scaling option, not a claim
-that it improves accuracy—the TabICLv2 paper reports only marginal gains from a
-deeper ablation. Checkpoints persist in the Modal Volume
-`microtabiclv2-checkpoints`; the command prints the exact download instruction.
+## Paper and code provenance
 
-## Profiles
+The implementation was checked against:
 
-| Profile | Width | Blocks (column/row/ICL) | Inducing tokens | Intended hardware |
-|---|---:|---:|---:|---|
-| `micro` | 48 | 1 / 1 / 2 | 16 | Mac / CPU |
-| `small` | 64 | 2 / 2 / 4 | 32 | larger Mac / Modal value GPU |
-| `paper` | 128 | 3 / 3 / 12 | 128 | Modal H100 / A100-80GB |
-| `large` | 192 | 4 / 4 / 18 | 192 | Modal H100 / A100-80GB |
-
-The `paper` architecture matches Appendix A.4, including 4 row CLS tokens and
-999 regression quantiles. Its default training schedule is still a practical
-single-GPU approximation with physical batch size 4; the published run used
-three stages totaling 550K steps, batch size 64 with micro-batching, contexts up
-to 60K rows, and about 24.5 H100 GPU-days.
-
-## Python API
-
-```python
-from microtabiclv2 import (
-    MicroTabICLv2Classifier,
-    get_model_config,
-    get_train_config,
-    train_model,
-)
-
-result = train_model(
-    get_model_config("micro", task="classification"),
-    get_train_config("micro", steps=100, output="checkpoints/example.pt"),
-)
-
-classifier = MicroTabICLv2Classifier(result.model)
-classifier.fit(X_train, y_train)
-y_probability = classifier.predict_proba(X_test)
-```
-
-`fit` stores the in-context examples; it does not update model weights. The
-gradient-based work happens once during synthetic pretraining.
-
-## Code map
-
-The implementation is deliberately small enough to read in order:
-
-1. [`prior.py`](src/microtabiclv2/prior.py) generates synthetic tabular tasks.
-2. [`model.py`](src/microtabiclv2/model.py) contains the complete compact
-   TabICLv2 architecture.
-3. [`train.py`](src/microtabiclv2/train.py) handles loss, optimization, and
-   checkpoints.
-4. [`estimator.py`](src/microtabiclv2/estimator.py) provides the scikit-learn
-   style in-context API.
-5. [`proof.py`](src/microtabiclv2/proof.py) implements the two falsifiable
-   learning demonstrations below.
-6. [`modal_app.py`](modal_app.py) moves the same training code to larger GPUs.
+- [TabICLv2 paper](https://arxiv.org/abs/2602.11139);
+- [official TabICL repository](https://github.com/soda-inria/tabicl), including
+  the public v2 pretraining/prior changes merged in PR #135;
+- [NanoTabICL](https://github.com/soda-inria/nanotabicl); and
+- recent official MPS/device work, which motivated the bias-separated Linear
+  layer used here.
 
 ## Tests
 
 ```bash
-uv run pytest
 uv run ruff check .
+uv run pytest
 ```
 
-Evaluate a trained classifier on five datasets and compare it with logistic
-regression and random forest using identical training splits:
+The repository intentionally contains one implementation file and one test
+file. Generated checkpoints, evaluations, caches, and build artifacts are
+ignored.
 
-```bash
-uv run microtabiclv2 eval \
-  --checkpoint checkpoints/microtabiclv2-clf.pt \
-  --device auto
-```
+## License
 
-## The smallest convincing proof
-
-One score can be a coincidence. This intervention keeps the checkpoint,
-feature coordinates, and test grid fixed, then changes only the labels in the
-context. The resulting SVG shows the same frozen model producing vertical,
-horizontal, and diagonal decision rules. It also repeats the test on random
-rotations with wrong-task, shuffled-label, and random-weight controls:
-
-```bash
-uv run microtabiclv2 proof \
-  --checkpoint checkpoints/microtabiclv2-clf.pt \
-  --device auto
-```
-
-For a stronger run, use `--repeats 100`. The default 20 keeps the educational
-demo quick.
-
-<img src="docs/assets/rule-switching.svg" width="760" alt="Four decision surfaces from one frozen model, followed by randomized controls">
-
-To see whether training—not architecture luck—causes the improvement, train
-once and measure binary-Iris AUC at fixed intervals:
-
-```bash
-uv run microtabiclv2 auc-curve \
-  --steps 500 \
-  --every 50 \
-  --device auto
-```
-
-This writes `evaluations/auc-vs-steps.svg`, the matching CSV, and a checkpoint.
-The figure includes a shuffled-context curve; genuine in-context learning
-should improve with correct labels while shuffled labels remain near chance.
-The control averages ten label permutations per split to avoid a lucky shuffle.
-Both figures are plain SVG generated without Matplotlib or another plotting
-dependency.
-
-<img src="docs/assets/auc-vs-steps.svg" width="760" alt="Correct-label and shuffled-label ROC AUC during 500 training steps">
-
-## Attribution
-
-The architecture is based on TabICLv2 by Qu, Holzmüller, Varoquaux, and Le
-Morvan and was cross-checked against the BSD-licensed
-[official TabICL code](https://github.com/soda-inria/tabicl) and
-[NanoTabICL](https://github.com/soda-inria/nanotabicl). This repository uses the
-BSD 3-Clause license.
+BSD 3-Clause. TabICLv2 is by Qu, Holzmüller, Varoquaux, and Le Morvan.

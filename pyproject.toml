@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "microtabiclv2"
 version = "0.1.0"
-description = "A compact, trainable TabICLv2 implementation for Mac and Modal"
+description = "A one-file educational implementation of TabICLv2"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = { text = "BSD-3-Clause" }
@@ -22,18 +22,13 @@ dev = [
     "pytest>=8",
     "ruff>=0.9",
 ]
-modal = [
-    "modal>=1.1",
-]
-
-[project.scripts]
-microtabiclv2 = "microtabiclv2.cli:main"
+modal = ["modal>=1.1"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/microtabiclv2"]
+only-include = ["microtabiclv2.py"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["test_microtabiclv2.py"]
 addopts = "-q"
 
 [tool.ruff]
