@@ -1,155 +1,120 @@
 # microTabICLv2
 
-A **one-file**, educational implementation of
-[TabICLv2](https://arxiv.org/abs/2602.11139). It trains from scratch on a tiny
-synthetic prior, runs on a Mac, and can use the same file on Modal GPUs.
+A **285-line**, one-file implementation of
+[TabICLv2](https://arxiv.org/abs/2602.11139) for learning. It trains from
+scratch on a Mac and runs the same file with a larger model on Modal.
 
-Like [microTabPFN](https://github.com/jxucoder/microtabpfn), the goal is to make
-the idea readable—not to reproduce the official pretrained model or its compute
-budget.
+Like [microTabPFN](https://github.com/jxucoder/microtabpfn), this is a readable
+experiment—not the official pretrained model or its compute budget.
 
-## Quick start
+## Run everything
 
-Install [uv](https://docs.astral.sh/uv/), then run the whole experiment:
+Install [uv](https://docs.astral.sh/uv/), then:
 
 ```bash
 uv sync --extra dev
 uv run python microtabiclv2.py --steps 500 --device auto
 ```
 
-That single command:
+That trains synthetic tasks, evaluates binary Iris every 50 steps, tests
+context switching, and regenerates both figures below. `auto` chooses CUDA,
+Apple MPS, then CPU.
 
-1. trains on synthetic tabular tasks;
-2. measures binary-Iris AUC every 50 steps;
-3. compares correct and shuffled context labels;
-4. tests four context-defined decision rules; and
-5. saves a reusable checkpoint.
+## Read one file
 
-Add `--svg-dir evaluations` to regenerate the figures. Use `--load
-checkpoints/microtabiclv2.pt --steps 0` to evaluate without training again.
+Open [`microtabiclv2.py`](microtabiclv2.py) and read downward:
 
-## The entire implementation
+1. `prior` creates many small classification tasks.
+2. `Attention` adds QASSMax-style context and query scaling.
+3. `MicroTabICLv2` performs column, row, then in-context attention.
+4. `train` learns across synthetic tasks.
+5. `iris_auc`, `rule_auc`, and `plot_proof` test what it learned.
+6. `modal_train` runs the larger configuration on a cloud GPU.
 
-[`microtabiclv2.py`](microtabiclv2.py) contains:
-
-- the correlated nonlinear synthetic prior;
-- feature grouping `(0, 1, 3)`;
-- early target-aware embeddings;
-- induced column attention;
-- RoPE row attention and CLS aggregation;
-- dataset-wise in-context attention with QASSMax;
-- training and checkpoints;
-- the sklearn-style classifier;
-- AUC and rule-switching proofs; and
-- optional Modal functions.
-
-The core model, prior, training loop, and estimator are about 300 lines. The
-remaining lines are comments, proofs, dependency-free SVG output, and Modal/CLI
-entrypoints.
-
-## How it works
+The whole script is 285 lines, including comments, evaluation, plots, Modal,
+and the CLI. The actual prior and model occupy roughly half of it. There is no
+package tree, configuration framework, trainer abstraction, or custom plotting
+code.
 
 ```text
-synthetic tasks
-      │
-      ▼
-group neighboring features + add known train labels
-      │
-      ▼
-induced attention over rows inside each feature
-      │
-      ▼
-attention over features inside each row
-      │
-      ▼
-test rows attend to labeled train rows (ICL happens here)
-      │
-      ▼
-class probabilities — no gradient update at inference
+features + known train labels
+             │
+             ▼
+ induced attention down each column
+             │
+             ▼
+ attention across columns in each row
+             │
+             ▼
+ test rows attend to labeled train rows
+             │
+             ▼
+        class probabilities
 ```
 
-## Does it really use context?
+## Proof that context matters
 
-A benchmark score alone is weak evidence. The rule-switching intervention keeps
-the model, feature coordinates, and test grid fixed while changing only the
-context labels. The frozen model must produce four incompatible boundaries.
+One frozen model receives the same coordinates but four different sets of
+context labels. Its decision boundary follows the examples without gradient
+updates:
 
-<img src="docs/assets/rule-switching.svg" width="680" alt="Four decision surfaces produced by one frozen model from different context labels">
+<img src="docs/assets/rule-switching.png" width="680" alt="Four decision surfaces from one frozen model">
 
-The training trace checks a different claim: does AUC improve as synthetic
-pretraining continues, while shuffled-label context stays near chance?
+The raw training trace compares correct context with shuffled-label context:
 
-<img src="docs/assets/auc-vs-steps.svg" width="680" alt="Correct-label and shuffled-label AUC during synthetic pretraining">
+<img src="docs/assets/auc-vs-steps.png" width="680" alt="AUC during synthetic pretraining">
 
-These are demonstrations of real in-context adaptation, not claims of broad
-state-of-the-art tabular performance.
+One 500-step Apple MPS run with seed 42 produced:
 
-One reproducible 500-step run on Apple MPS (seed 42) produced:
+| Intervention | AUC |
+|---|---:|
+| Binary Iris, correct context | **0.988** |
+| Binary Iris, shuffled labels | 0.425 |
+| 100 changing rules, correct context | **0.971** |
+| Same tasks, wrong rule | 0.487 |
+| Same tasks, shuffled labels | 0.485 |
 
-| Test | Correct context | Control |
-|---|---:|---:|
-| Binary Iris AUC | **0.969** | 0.481 with shuffled labels |
-| 100 changing linear rules | **0.984** | 0.528 with the wrong rule |
-
-The point is the controlled gap: the weights and test inputs stay fixed, and
-only the labeled examples change. Run the quick-start command to reproduce it;
-exact values vary with hardware and seed.
+The controlled gap is the evidence: model weights and test inputs stay fixed;
+only the labeled examples change. Exact values vary with hardware and seed.
 
 ## Make it bigger with Modal
 
-The same file exposes two optional Modal functions:
+The `big` configuration increases width, inducing tokens, and attention depth.
+The same source file exposes one Modal function:
 
 ```bash
 uv sync --extra modal
 uv run modal setup
-
-# L40S / A10 / T4 fallback pool
-uv run modal run microtabiclv2.py::modal_small \
-  --profile small --steps 5000 --name small
-
-# H100 / A100-80GB fallback pool
-uv run modal run --detach microtabiclv2.py::modal_large \
-  --profile paper --steps 100000 --name paper
+uv run modal run --detach microtabiclv2.py::modal_train --steps 10000
 ```
 
-Checkpoints persist in the `microtabiclv2-checkpoints` Modal Volume.
+It uses an L40S/A10 fallback pool and stores `big.pt` in the persistent
+`microtabiclv2-checkpoints` Volume.
 
-| Profile | Width | Blocks (column/row/ICL) | Intended hardware |
-|---|---:|---:|---|
-| `micro` | 48 | 1 / 1 / 2 | Mac / CPU |
-| `small` | 64 | 2 / 2 / 4 | Modal value GPU |
-| `paper` | 128 | 3 / 3 / 12 | Modal H100 / A100 |
-| `large` | 192 | 4 / 4 / 18 | scaling experiment |
-
-## Limitations
+## Deliberate omissions
 
 - classification only;
-- a tiny SCM/BNN-like prior rather than the full released TabICLv2 prior;
-- contexts of tens to hundreds of rows, not the paper's 60K-row curriculum;
-- no preprocessing ensemble, KV cache, disk offloading, or official weights;
-- educational profiles are not benchmark-equivalent to TabICLv2.
+- a tiny nonlinear prior instead of the full released prior;
+- no RoPE, preprocessing ensemble, KV cache, or disk offloading;
+- contexts of tens of rows, not the paper's 60K-row curriculum;
+- no claim of matching TabICLv2 benchmark results.
 
-## Paper and code provenance
+The implementation was checked against the
+[paper](https://arxiv.org/abs/2602.11139), the
+[official repository](https://github.com/soda-inria/tabicl), its public v2
+pretraining/prior changes in PR #135, and
+[NanoTabICL](https://github.com/soda-inria/nanotabicl).
 
-The implementation was checked against:
-
-- [TabICLv2 paper](https://arxiv.org/abs/2602.11139);
-- [official TabICL repository](https://github.com/soda-inria/tabicl), including
-  the public v2 pretraining/prior changes merged in PR #135;
-- [NanoTabICL](https://github.com/soda-inria/nanotabicl); and
-- recent official MPS/device work, which motivated the bias-separated Linear
-  layer used here.
-
-## Tests
+## Check it
 
 ```bash
 uv run ruff check .
 uv run pytest
+uv build
 ```
 
-The repository intentionally contains one implementation file and one test
-file. Generated checkpoints, evaluations, caches, and build artifacts are
-ignored.
+The wheel contains one Python module. The repository keeps one 16-line test
+file; generated checkpoints, caches, and build artifacts are ignored.
 
 ## License
 
