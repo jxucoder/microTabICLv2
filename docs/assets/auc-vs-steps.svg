@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470">
+<style>text{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;fill:#20241f}.title{font-size:28px;font-weight:750}.sub{font-size:14px;fill:#667066}.tick{font-size:11px;fill:#667066}.legend{font-size:12px;font-weight:650}</style>
+<rect width="760" height="470" fill="#f7f4ed"/>
+<text class="title" x="38" y="42">Does more pretraining improve AUC?</text>
+<text class="sub" x="38" y="64">Binary Iris; 5 fixed splits, 10 shuffles/split; bands are ± standard error.</text>
+<rect x="72" y="82" width="635" height="300" fill="#fffdf8" stroke="#cbc8c0"/>
+<line x1="72" y1="382.00" x2="707" y2="382.00" stroke="#ddd9d0"/>
+<text class="tick" x="63" y="386.00" text-anchor="end">0.01</text>
+<line x1="72" y1="307.00" x2="707" y2="307.00" stroke="#ddd9d0"/>
+<text class="tick" x="63" y="311.00" text-anchor="end">0.26</text>
+<line x1="72" y1="232.00" x2="707" y2="232.00" stroke="#ddd9d0"/>
+<text class="tick" x="63" y="236.00" text-anchor="end">0.51</text>
+<line x1="72" y1="157.00" x2="707" y2="157.00" stroke="#ddd9d0"/>
+<text class="tick" x="63" y="161.00" text-anchor="end">0.75</text>
+<line x1="72" y1="82.00" x2="707" y2="82.00" stroke="#ddd9d0"/>
+<text class="tick" x="63" y="86.00" text-anchor="end">1.00</text>
+<line x1="72" y1="233.57" x2="707" y2="233.57" stroke="#777" stroke-dasharray="5 5"/>
+<polygon points="72.00,338.77 135.50,361.92 199.00,358.93 262.50,293.34 326.00,98.44 389.50,88.20 453.00,88.13 516.50,85.19 580.00,85.05 643.50,84.75 707.00,84.49 707.00,87.08 643.50,87.78 580.00,88.26 516.50,88.31 453.00,93.33 389.50,91.32 326.00,104.94 262.50,306.99 199.00,364.98 135.50,366.84 72.00,349.44" fill="#287d67" opacity=".14"/>
+<polyline points="72.00,344.11 135.50,364.38 199.00,361.96 262.50,300.16 326.00,101.69 389.50,89.76 453.00,90.73 516.50,86.75 580.00,86.66 643.50,86.27 707.00,85.78" fill="none" stroke="#287d67" stroke-width="3"/>
+<circle cx="72.00" cy="344.11" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="135.50" cy="364.38" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="199.00" cy="361.96" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="262.50" cy="300.16" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="326.00" cy="101.69" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="389.50" cy="89.76" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="453.00" cy="90.73" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="516.50" cy="86.75" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="580.00" cy="86.66" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="643.50" cy="86.27" r="4" fill="#287d67" stroke="#fff"/>
+<circle cx="707.00" cy="85.78" r="4" fill="#287d67" stroke="#fff"/>
+<polygon points="72.00,340.20 135.50,363.40 199.00,361.08 262.50,329.16 326.00,116.63 389.50,320.81 453.00,179.65 516.50,284.26 580.00,216.71 643.50,207.45 707.00,223.73 707.00,255.87 643.50,238.86 580.00,248.24 516.50,309.03 453.00,202.96 389.50,336.54 326.00,120.38 262.50,333.00 199.00,362.79 135.50,364.86 72.00,343.45" fill="#7654a6" opacity=".14"/>
+<polyline points="72.00,341.83 135.50,364.13 199.00,361.94 262.50,331.08 326.00,118.50 389.50,328.67 453.00,191.31 516.50,296.64 580.00,232.47 643.50,223.15 707.00,239.80" fill="none" stroke="#7654a6" stroke-width="3"/>
+<circle cx="72.00" cy="341.83" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="135.50" cy="364.13" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="199.00" cy="361.94" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="262.50" cy="331.08" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="326.00" cy="118.50" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="389.50" cy="328.67" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="453.00" cy="191.31" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="516.50" cy="296.64" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="580.00" cy="232.47" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="643.50" cy="223.15" r="4" fill="#7654a6" stroke="#fff"/>
+<circle cx="707.00" cy="239.80" r="4" fill="#7654a6" stroke="#fff"/>
+<text class="tick" x="72.00" y="402" text-anchor="middle">0</text>
+<text class="tick" x="199.00" y="402" text-anchor="middle">100</text>
+<text class="tick" x="326.00" y="402" text-anchor="middle">200</text>
+<text class="tick" x="453.00" y="402" text-anchor="middle">300</text>
+<text class="tick" x="580.00" y="402" text-anchor="middle">400</text>
+<text class="tick" x="707.00" y="402" text-anchor="middle">500</text>
+<text class="legend" x="82" y="102" style="fill:#287d67">● correct labels</text>
+<text class="legend" x="197" y="102" style="fill:#7654a6">● shuffled labels</text>
+<text class="legend" x="327" y="102" style="fill:#777">- - chance</text>
+<text class="sub" x="389.5" y="435" text-anchor="middle">synthetic pretraining steps</text>
+<text class="sub" x="20" y="232.0" text-anchor="middle" transform="rotate(-90 20 232.0)">ROC AUC</text>
+</svg>
